@@ -1,0 +1,75 @@
+name: deploy-logara-appservice-container
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  APP_SERVICE_NAME: ${{ vars.APP_SERVICE_NAME }}
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  IMAGE_NAME: logara
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure CLI version
+        run: az version
+
+      - name: Get ACR access token
+        id: acr-token
+        run: |
+          token=$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login to ACR
+        run: |
+          echo "${{ steps.acr-token.outputs.token }}" | docker login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+
+      - name: Build and push image
+        id: image
+        run: |
+          image="$ACR_LOGIN_SERVER/$IMAGE_NAME:${GITHUB_SHA}"
+          docker build -t "$image" .
+          docker push "$image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Configure App Service container
+        run: |
+          az webapp config container set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_SERVICE_NAME" \
+            --container-image-name "${{ steps.image.outputs.image }}" \
+            --container-registry-url "https://$ACR_LOGIN_SERVER"
+
+      - name: Configure App Service port
+        run: |
+          az webapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_SERVICE_NAME" \
+            --settings WEBSITES_PORT=8080
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_SERVICE_NAME"

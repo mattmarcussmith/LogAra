@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogAra.Api/LogAra.Api.csproj" />
+    <Project Path="src/LogAra.Application/LogAra.Application.csproj" />
+    <Project Path="src/LogAra.Client/LogAra.Client.csproj" />
+    <Project Path="src/LogAra.Contracts/LogAra.Contracts.csproj" />
+    <Project Path="src/LogAra.Domain/LogAra.Domain.csproj" />
+    <Project Path="src/LogAra.Infrastructure/LogAra.Infrastructure.csproj" />
+  </Folder>
+</Solution>

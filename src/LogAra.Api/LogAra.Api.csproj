@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogAra.Application\LogAra.Application.csproj" />
+    <ProjectReference Include="..\LogAra.Infrastructure\LogAra.Infrastructure.csproj" />
+    <ProjectReference Include="..\LogAra.Contracts\LogAra.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

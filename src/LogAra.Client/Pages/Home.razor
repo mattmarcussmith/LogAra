@@ -1,0 +1,250 @@
+﻿@page "/"
+
+<InputFile id="log-file-input" class="visually-hidden-file" OnChange="OnFileSelected" />
+
+@if (!IsStateReady)
+{
+	<div class="la-loading" role="status" aria-live="polite" aria-label="Loading LogAra">
+		<img class="la-loading-icon" src="Image/favicon.svg" alt="" aria-hidden="true" />
+		<div class="la-loading-text" aria-hidden="true">
+			<span>Loading</span>
+			<span class="la-loading-dots">
+				<span>.</span>
+				<span>.</span>
+				<span>.</span>
+			</span>
+		</div>
+	</div>
+}
+
+<div class="la-shell @(IsStateReady ? string.Empty : "state-pending")">
+	<header class="la-topbar">
+		<div class="la-brand">
+			<span class="wordmark" aria-label="LogAra">
+				<span class="wordmark-log">Log</span><span class="wordmark-a">A</span><span class="wordmark-ra">ra</span>
+			</span>
+		</div>
+		<div class="la-actions">
+			@if (!string.IsNullOrWhiteSpace(SelectedFileName))
+			{
+				<span class="selected-file">@SelectedFileName</span>
+			}
+			<div class="sample-inline" aria-label="Sample logs">
+				<span class="sample-inline-label">Sample logs</span>
+				<button type="button" class="sample-inline-link" @onclick='() => AnalyzeSampleAsync("samples/checkout.log", "checkout.log")' disabled="@IsBusy">checkout flow</button>
+				<button type="button" class="sample-inline-link" @onclick='() => AnalyzeSampleAsync("samples/orders-api.log", "orders-api.log")' disabled="@IsBusy">orders api</button>
+			</div>
+			<label for="log-file-input" class="btn btn-upload">Upload Log</label>
+			<button class="btn btn-analyze" @onclick="AnalyzeAsync" disabled="@(SelectedFile is null || IsBusy)">@(IsBusy ? "Analyzing..." : "Analyze")</button>
+			<button class="theme-toggle" title="Toggle theme" aria-label="Toggle theme" @onclick="ToggleThemeAsync">
+				<span class="theme-icon sun" aria-hidden="true">☼</span>
+				<span class="theme-icon moon" aria-hidden="true">◐</span>
+			</button>
+		</div>
+	</header>
+
+	<div class="la-grid">
+		<aside class="panel history-panel">
+			<h2>History</h2>
+			@if (History.Count == 0)
+			{
+				<div class="history-empty">
+					<div class="history-empty-icon" aria-hidden="true">⌂</div>
+					<h3>No log history yet</h3>
+					<p>Upload a log file to analyze and build your history. Your uploads are stored only in this browser.</p>
+					<label for="log-file-input" class="btn btn-upload">Upload Log</label>
+				</div>
+			}
+			else
+			{
+				<ul class="history-list">
+					@foreach (var item in History)
+					{
+						<li>
+							<button class="history-item" @onclick="() => RestoreHistory(item)">
+								<span class="history-name">@item.FileName</span>
+								<span class="history-time">@item.AnalyzedAtUtc.ToLocalTime().ToString("g")</span>
+							</button>
+						</li>
+					}
+				</ul>
+				<button class="btn btn-clear" @onclick="ClearHistoryAsync">Clear History</button>
+			}
+
+			<div class="history-note">
+				<p>History is stored only in this browser. Clearing browser data will remove it.</p>
+				<button class="btn-link" @onclick="ShowHelpModal">Learn more</button>
+			</div>
+		</aside>
+
+		<main class="center-column">
+			<section class="panel overview-panel">
+				<h2>Overview</h2>
+				<div class="overview-cards">
+					<article class="card metric-errors">
+						<p class="label">Errors</p>
+						<p class="value">@(CurrentResult?.ErrorCount ?? 0)</p>
+						<p class="delta @GetDeltaClass(GetErrorDelta())">@FormatDeltaText(GetErrorDelta())</p>
+					</article>
+					<article class="card metric-warnings">
+						<p class="label">Warnings</p>
+						<p class="value">@(CurrentResult?.WarningCount ?? 0)</p>
+						<p class="delta @GetDeltaClass(GetWarningDelta())">@FormatDeltaText(GetWarningDelta())</p>
+					</article>
+					<article class="card metric-unique">
+						<p class="label">Unique Issues</p>
+						<p class="value">@(CurrentResult?.Issues.Count ?? 0)</p>
+					</article>
+					<article class="card metric-history">
+						<p class="label">History</p>
+						<p class="value">@History.Count</p>
+					</article>
+				</div>
+			</section>
+
+			<section class="panel issues-panel">
+				<div class="issues-head">
+					<h2>Issues</h2>
+					<span>Occurrences</span>
+				</div>
+
+				@if (CurrentResult?.Issues.Count > 0)
+				{
+					<ul class="issues-list">
+						@foreach (var issue in CurrentResult.Issues)
+						{
+							<li>
+								<button class="issue-row @(SelectedIssue?.Fingerprint == issue.Fingerprint ? "selected" : string.Empty)" @onclick="() => SelectIssue(issue)">
+									<div class="issue-main">
+										<span class="severity-dot @GetSeverityCss(issue.Severity)"></span>
+										<div>
+											<p class="issue-title @GetSeverityCss(issue.Severity)">@issue.RepresentativeEntry.Message</p>
+											<p class="issue-sub">@issue.RepresentativeEntry.Message</p>
+										</div>
+									</div>
+									<div class="issue-side">
+										<span>@issue.Occurrences</span>
+									</div>
+								</button>
+							</li>
+						}
+					</ul>
+				}
+				else
+				{
+					<p class="empty-text">Upload and analyze a log to populate issues.</p>
+				}
+			</section>
+		</main>
+
+		<aside class="panel detail-panel">
+			<div class="detail-head">
+				<h2>Issue Details</h2>
+				<span class="close-mark">×</span>
+			</div>
+
+			@if (SelectedIssue is not null)
+			{
+				<div class="issue-header-block">
+					<h3>@SelectedIssue.RepresentativeEntry.Message</h3>
+					<span class="tag @GetSeverityCss(SelectedIssue.Severity)">@SelectedIssue.Severity</span>
+				</div>
+				<div class="issue-meta">
+					<p><strong>Source:</strong> @SelectedIssue.RepresentativeEntry.Source</p>
+					<p><strong>Fingerprint:</strong> @SelectedIssue.Fingerprint</p>
+					<p><strong>Representative Timestamp:</strong> @FormatTimestamp(SelectedIssue.RepresentativeEntry.TimestampUtc)</p>
+				</div>
+				<p class="issue-sub">@SelectedIssue.RepresentativeEntry.Message</p>
+				<div class="occurrences">
+					<label>Occurrences</label>
+					<strong>@SelectedIssue.Occurrences</strong>
+				</div>
+				<section class="explanation-card raw-entry-card">
+					<h4>Representative Raw Log Line</h4>
+					<pre class="raw-entry-content">@SelectedIssue.RepresentativeEntry.RawLine</pre>
+				</section>
+				<button class="btn explain-btn" @onclick="ExplainSelectedIssueAsync" disabled="@IsExplaining">
+					@if (IsExplaining)
+					{
+						<span>Explaining</span>
+						<span class="ai-loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+					}
+					else
+					{
+						<span>Explain with AI</span>
+					}
+				</button>
+
+				<section class="explanation-card ai-explanation-card @(IsExplaining ? "is-thinking" : string.Empty)">
+					<div class="ai-response-head">
+						<span class="ai-robot-icon" aria-hidden="true">🤖</span>
+						<h4>AI Explanation</h4>
+					</div>
+
+					@if (IsExplaining)
+					{
+						<div class="ai-response-bubble" role="status" aria-live="polite">
+							<span>Thinking</span>
+							<span class="ai-loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+						</div>
+					}
+					else if (!string.IsNullOrWhiteSpace(DisplayedExplanationText))
+					{
+						<div class="ai-response-bubble @(IsTypingExplanation ? "is-typing" : string.Empty)" aria-live="polite">
+							<pre>@DisplayedExplanationText</pre>
+						</div>
+					}
+					else
+					{
+						<p>No explanation available.</p>
+					}
+					<p class="hint">First seen: @FormatTimestamp(SelectedIssue.FirstSeenUtc)</p>
+					<p class="hint">Last seen: @FormatTimestamp(SelectedIssue.LastSeenUtc)</p>
+				</section>
+
+				<button class="raw-entry" title="Representative raw log entry" @onclick="OpenRawEntryModal">
+					View raw log entry
+				</button>
+			}
+			else
+			{
+				<p class="empty-text">Select an issue to inspect details.</p>
+			}
+
+			@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+			{
+				<p class="error">@ErrorMessage</p>
+			}
+		</aside>
+	</div>
+</div>
+
+@if (IsHelpModalOpen)
+{
+	<div class="modal-overlay" @onclick="CloseHelpModal">
+		<div class="modal-card" @onclick:stopPropagation="true">
+			<div class="modal-head">
+				<h3>Browser-local History</h3>
+				<button class="btn-link" @onclick="CloseHelpModal">Close</button>
+			</div>
+			<p>Log analysis history, cached explanations, and theme preference are stored in IndexedDB in this browser only.</p>
+			<p>No server-side database is used, and uploaded raw logs are not permanently stored on the server.</p>
+		</div>
+	</div>
+}
+
+@if (IsRawEntryModalOpen && SelectedIssue is not null)
+{
+	<div class="modal-overlay" @onclick="CloseRawEntryModal">
+		<div class="modal-card" @onclick:stopPropagation="true">
+			<div class="modal-head">
+				<h3>Raw Log Entry</h3>
+				<button class="btn-link" @onclick="CloseRawEntryModal">Close</button>
+			</div>
+			<p><strong>Severity:</strong> @SelectedIssue.RepresentativeEntry.Severity</p>
+			<p><strong>Source:</strong> @SelectedIssue.RepresentativeEntry.Source</p>
+			<p><strong>Timestamp:</strong> @FormatTimestamp(SelectedIssue.RepresentativeEntry.TimestampUtc)</p>
+			<pre class="raw-entry-content">@SelectedIssue.RepresentativeEntry.RawLine</pre>
+		</div>
+	</div>
+}
