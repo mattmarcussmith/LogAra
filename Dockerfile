@@ -5,6 +5,7 @@ COPY LogAra.slnx ./
 COPY src ./src
 
 RUN dotnet restore ./LogAra.slnx
+
 RUN dotnet publish ./src/LogAra.Client/LogAra.Client.csproj \
     -c Release \
     -o /out/client \
@@ -15,7 +16,7 @@ RUN dotnet publish ./src/LogAra.Api/LogAra.Api.csproj \
     -o /out/api \
     --no-restore
 
-# Serve the Blazor WASM application from the API container.
+# Copy the Blazor WebAssembly files into the API's wwwroot folder.
 RUN rm -rf /out/api/wwwroot \
     && mkdir -p /out/api/wwwroot \
     && cp -a /out/client/wwwroot/. /out/api/wwwroot/
@@ -26,8 +27,8 @@ WORKDIR /app
 COPY --from=build /out/api ./
 
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_HTTP_PORTS=10000
+ENV ASPNETCORE_URLS=http://+:8080
 
-EXPOSE 10000
+EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "LogAra.Api.dll"]
