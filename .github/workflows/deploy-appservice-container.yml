@@ -11,10 +11,10 @@ permissions:
   contents: read
 
 env:
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
-  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  ACR_NAME: mydockerapps
+  ACR_LOGIN_SERVER: mydockerapps-b8erbdd9eucnhecb.azurecr.io
+  CONTAINER_APP_NAME: logara
+  RESOURCE_GROUP: PortfolioGroup
   IMAGE_NAME: logara
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Container Apps CLI extension
+      - name: Install Container Apps extension
         run: |
           az extension add \
             --name containerapp \
@@ -52,7 +52,7 @@ jobs:
           echo "::add-mask::$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
 
-      - name: Docker login to ACR
+      - name: Log in to ACR
         shell: bash
         run: |
           echo "${{ steps.acr-token.outputs.token }}" |
@@ -66,10 +66,7 @@ jobs:
         run: |
           image="$ACR_LOGIN_SERVER/$IMAGE_NAME:${GITHUB_SHA}"
 
-          docker build \
-            --tag "$image" \
-            .
-
+          docker build -t "$image" .
           docker push "$image"
 
           echo "image=$image" >> "$GITHUB_OUTPUT"
