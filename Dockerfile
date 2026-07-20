@@ -11,15 +11,19 @@ RUN dotnet publish ./src/LogAra.Client/LogAra.Client.csproj \
     -o /out/client \
     --no-restore
 
+RUN test -d /out/client/wwwroot/_framework \
+    && find /out/client/wwwroot/_framework -maxdepth 1 -type f \
+    -name "icudt*.dat" -print
+
 RUN dotnet publish ./src/LogAra.Api/LogAra.Api.csproj \
     -c Release \
     -o /out/api \
     --no-restore
 
-# Copy the Blazor WebAssembly files into the API's wwwroot folder.
 RUN rm -rf /out/api/wwwroot \
     && mkdir -p /out/api/wwwroot \
-    && cp -a /out/client/wwwroot/. /out/api/wwwroot/
+    && cp -a /out/client/wwwroot/. /out/api/wwwroot/ \
+    && test -n "$(find /out/api/wwwroot/_framework -maxdepth 1 -name 'icudt*.dat' -print -quit)"
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
